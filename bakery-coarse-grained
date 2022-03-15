@@ -1,0 +1,67 @@
+mod BAKERY is
+    pr LIST-NAT .
+    pr BOOL .
+    sorts Procc Pid Snapshot Status Tables .
+    subsort Procc Tables < Snapshot .
+    ops wait ready in : -> Status [ctor] .
+    op p[_] : Nat -> Pid [ctor] .
+    op [_:_] : Pid Status -> Procc [ctor] .
+    op none : -> Snapshot [ctor] .
+    op __ : Snapshot Snapshot -> Snapshot [assoc comm ctor id: none] .
+    op _||_ : ListNat ListNat -> Tables [ctor] .
+    op checkReady[_:_:_:_] : ListNat ListNat Nat Nat -> Bool .
+    op checkReady[_:_:_] : ListNat ListNat Nat -> Bool .
+
+
+
+    
+    vars number flag : ListNat .
+    vars i j k n m : Nat .
+    var c : Snapshot .
+    var s : Status .
+    
+    eq checkReady[nil : nil : k : n] = true .
+    eq checkReady[i,flag : j,number : 0 : m] = checkReady[flag : number : m] .
+    eq checkReady[i,flag : j,number : (s k) : m] = if i == 1 and j <= m then false else checkReady[flag : number : k : m] fi .
+
+    eq checkReady[nil : nil : n] = true .
+    eq checkReady[i,flag : j,number : n] = if i == 1 and j < n then false else checkReady[flag : number : n] fi .
+
+    rl [getready] : [p[i] : wait] (flag || number) => [p[i] : ready] (set[flag : i , 1] || set[number : i , (max[number : 0] + 1)]) .
+    crl [getin] : [p[i] : ready] (flag || number) => [p[i] : in] (flag || number) 
+        if checkReady[flag : number : i : get[number : i]] .
+    rl [leave] : [p[i] : in] (flag || number) => [p[i] : wait] (set[flag : i , 0] || number) .
+
+endm
+
+mod BAKERY-CHECK is
+    pr SATISFACTION .
+    pr BAKERY .
+    pr MODEL-CHECKER .
+    pr LTL-SIMPLIFIER .
+
+    subsort Snapshot < State .
+
+    op want : Pid -> Prop .
+    op in : Pid -> Prop .
+    op pre : Pid Pid -> Prop .
+    op inout : Pid Pid -> Prop .
+
+    var s : Snapshot .
+    var p : Prop .
+    vars i j : Nat .
+    vars flag number : ListNat .
+    vars s1 s2 : Status .
+
+    eq [p[i] : ready] s |= want(p[i]) = true .
+    eq [p[i] : in] s |= in(p[i]) = true .
+    ceq [p[i] : ready] [p[j] : ready] (flag || number) s |= pre(p[i] , p[j]) = true
+        if get[number : i] < get[number : j] .
+    eq [p[i] : in] [p[j] : ready] s |= inout(p[i] , p[j]) = true .
+    eq s |= p = false [owise] .
+
+    op ini : -> Snapshot .
+
+    eq ini = ([p[0] : wait] [p[1] : wait] [p[2] : wait] [p[3] : wait]) (0,0,0,0 || 0,0,0,0) .
+
+endm
