@@ -1,0 +1,66 @@
+mod BAKERY is
+    pr LIST-NAT .
+    pr BOOL .
+    sorts Process Pid Snapshot Status Tables Counter .
+    subsort Process Tables Counter < Snapshot .
+    subsort Nat < Counter .
+    ops wait finishget getnum setnum checkf checkn in concede : -> Status [ctor] .
+    op p[_] : Nat -> Pid [ctor] .
+    op [_:_:num(_):selecting(_):checking(_)] : Pid Status Nat Nat Nat -> Process [ctor] .
+    op none : -> Snapshot [ctor] .
+    op __ : Snapshot Snapshot -> Snapshot [assoc comm ctor id: none] .
+    op _||_ : ListNat ListNat -> Tables [ctor] .
+
+    var c : Snapshot .
+    vars flag number : ListNat .
+    var s : Status .
+    vars n i select check counter : Nat .
+
+    rl [attempt] : [p[i] : wait :num(0) :selecting(0) :checking(0)] (flag || number) => [p[i] : getnum :num(0) :selecting(0) :checking(0)] (set[flag : i , 1] || number) .
+    crl [selecting] : [p[i] : getnum :num(n) :selecting(select) :checking(0)] (flag || number) => [p[i] : getnum :num(if (get[number : select] + 1) > n then (s get[number : select]) else n fi) :selecting(s select) :checking(0)] (flag || number)
+        if select < len(number) .
+    crl [finishselect] : [p[i] : getnum :num(n) :selecting(select) :checking(0)] (flag || number) => [p[i] : setnum :num(n) :selecting(0) :checking(0)] (flag || number)
+        if select >= len(number) and n <= len(number) .
+    crl [concede] : [p[i] : getnum :num(n) :selecting(select) :checking(0)] (flag || number) => [p[i] : concede :num(0) :selecting(0) :checking(0)] (set[flag : i , 0] || number)
+        if select >= len(number) and n > len(number) .
+    crl [restart] : counter [p[i] : concede :num(0) :selecting(0) :checking(0)] => counter [p[i] : wait :num(0) :selecting(0) :checking(0)]
+        if counter == 0 .
+    rl [setnum] : counter [p[i] : setnum :num(n) :selecting(0) :checking(0)] (flag || number) => (s counter) [p[i] : finishget :num(n) :selecting(0) :checking(0)] (flag || set[number : i , n]) .
+    rl [finishget] : [p[i] : finishget :num(n) :selecting(0) :checking(0)] (flag || number) => [p[i] : checkf :num(n) :selecting(0) :checking(0)] (set[flag : i , 0] || number) .
+    crl [checkf] : [p[i] : checkf :num(n) :selecting(0) :checking(check)] (flag || number) => [p[i] : checkn :num(n) :selecting(0) :checking(check)] (flag || number)
+        if check < len(flag) and (check == i or get[flag : check] =/= 1) .
+    crl [checkn] : [p[i] : checkn :num(n) :selecting(0) :checking(check)] (flag || number) => [p[i] : checkf :num(n) :selecting(0) :checking(s check)] (flag || number)
+        if (check < len(number) and (check == i or (get[number : check] == 0 or (get[number : check] > n or (get[number : check] == n and check > i))))) .
+    crl [finishcheck] : [p[i] : checkf :num(n) :selecting(0) :checking(check)] (flag || number) => [p[i] : in :num(0) :selecting(0) :checking(0)] (flag || number)
+        if check >= len(number) .
+    rl [leave] : (s counter) [p[i] : in :num(0) :selecting(0) :checking(0)] (flag || number) => (counter) [p[i] : wait :num(0) :selecting(0) :checking(0)] (flag || set[number : i , 0]) .
+
+endm
+
+mod BAKERY-CHECK is
+    pr SATISFACTION .
+    pr BAKERY .
+    pr MODEL-CHECKER .
+    pr LTL-SIMPLIFIER .
+
+    subsort Snapshot < State .
+
+    op want : Pid -> Prop .
+    op in : Pid -> Prop .
+
+    var s : Snapshot .
+    var p : Prop .
+    vars i j : Nat .
+    vars flag number : ListNat .
+    vars s1 s2 : Status .
+    vars m n check select : Nat .
+
+    eq [p[i] : setnum :num(n) :selecting(select) :checking(check)] s |= want(p[i]) = true .
+    eq [p[i] : in :num(n) :selecting(select) :checking(check)] s |= in(p[i]) = true .
+    eq s |= p = false [owise] .
+
+    op ini : -> Snapshot .
+
+    eq ini = 0 ([p[0] : wait :num(0) :selecting(0) :checking(0)] [p[1] : wait :num(0) :selecting(0) :checking(0)] [p[2] : wait :num(0) :selecting(0) :checking(0)]) (0,0,0 || 0,0,0) .
+
+endm
