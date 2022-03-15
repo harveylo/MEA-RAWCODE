@@ -1,38 +1,41 @@
 mod BAKERY is
     pr LIST-NAT .
     pr BOOL .
-    sorts Process Pid Snapshot Status Tables Ctrls .
-    subsort Process Tables Ctrls < Snapshot .
-    subsort Nat < Ctrls .
-    ops wait ready finishget getnum setnum in : -> Status [ctor] .
+    sorts Procc Pid Snap Status Tables Ctrls .
+    subsort Procc Tables Ctrls < Snap .
+    ops wait ready in : -> Status [ctor] .
     op p[_] : Nat -> Pid [ctor] .
-    op [_:_:(_)] : Pid Status Nat -> Process [ctor] .
-    op none : -> Snapshot [ctor] .
-    op __ : Snapshot Snapshot -> Snapshot [assoc comm ctor id: none] .
+    op [_:_] : Pid Status -> Procc [ctor] .
+    op none : -> Snap [ctor] .
+    op __ : Snap Snap -> Snap [assoc comm ctor id: none] .
     op _||_ : ListNat ListNat -> Tables [ctor] .
     op checkReady[_:_:_:_] : ListNat ListNat Nat Nat -> Bool .
     op checkReady[_:_:_] : ListNat ListNat Nat -> Bool .
+    op _-_ : Nat Nat -> Ctrls [ctor] .
 
-    vars n m x y i j k ma : Nat .
-    var c : Snapshot .
-    vars flag number : ListNat .
+
+
+    
+    vars number flag : ListNat .
+    vars i j k n m : Nat .
+    var c : Snap .
     var s : Status .
-
+    
     eq checkReady[nil : nil : k : n] = true .
     eq checkReady[i,flag : j,number : 0 : m] = checkReady[flag : number : m] .
-    eq checkReady[i,flag : j,number : (s k) : m] = if i == 1 or (j <= m and j =/= 0)then false else checkReady[flag : number : k : m] fi .
+    eq checkReady[i,flag : j,number : (s k) : m] = if i == 1 and j <= m then false else checkReady[flag : number : k : m] fi .
 
     eq checkReady[nil : nil : n] = true .
-    eq checkReady[i,flag : j,number : n] = if i == 1 or (j < n and j =/= 0) then false else checkReady[flag : number : n] fi .
+    eq checkReady[i,flag : j,number : n] = if i == 1 and j < n then false else checkReady[flag : number : n] fi .
 
-    crl [getready] : (ma) [p[i] : wait : (m)] (flag || number) => (ma) [p[i] : ready : (m)] (set[flag : i , 1] || number) 
-        if max[number : 0] < ma .
-    rl [getnum] : (ma) [p[i] : ready : (m)] (flag || number) => (ma) [p[i] : getnum : (s max[number : 0])] (flag || number) .
-    rl [setnum] : [p[i] : getnum : (n)] (flag || number ) => [p[i] : setnum : (n)] (flag || set[number : i , n]) .
-    rl [finishget] : [p[i] : setnum : (n)] (flag || number) => [p[i] : finishget : (n)] (set[flag : i , 0] || number) .
-    crl [getin] : [p[i] : finishget : (n)] (flag || number) => [p[i] : in : (n)] (flag || number) 
-        if checkReady[flag : number : i : n] .
-    rl [leave] : (ma) [p[i] : in : (n)] (flag || number) => (ma) [p[i] : wait : (n)] (flag || set[number : i , 0]) .
+    crl [getready] : (n - m) [p[i] : wait] (flag || number) => (n - (m + 1)) [p[i] : ready] (set[flag : i , 1] || set[number : i , (max[number : 0] + 1)]) 
+        if max[number : 0] < n .
+    crl [getin] : [p[i] : ready] (flag || number) => [p[i] : in] (flag || number) 
+        if checkReady[flag : number : i : get[number : i]] .
+    rl [leave] : (n - (s m)) [p[i] : in] (flag || number) => (n - m) [p[i] : wait] (set[flag : i , 0] || number) .
+    crl [reset] : (n - m) c (flag || number) => (n - m) c (flag || setAll[number : 0]) 
+        if m == 0 and (not allEqual[number : 0]).
+
 endm
 
 mod BAKERY-CHECK is
@@ -41,28 +44,28 @@ mod BAKERY-CHECK is
     pr MODEL-CHECKER .
     pr LTL-SIMPLIFIER .
 
-    subsort Snapshot < State .
+    subsort Snap < State .
 
     op want : Pid -> Prop .
     op in : Pid -> Prop .
     op pre : Pid Pid -> Prop .
     op inout : Pid Pid -> Prop .
 
-    var c : Snapshot .
+    var s : Snap .
     var p : Prop .
     vars i j : Nat .
     vars flag number : ListNat .
-    vars m n : Nat .
+    vars s1 s2 : Status .
 
-    eq [p[i] : ready : (n)] c |= want(p[i]) = true .
-    eq [p[i] : in : (n)] c |= in(p[i]) = true .
-    ceq [p[i] : ready : (m)] [p[j] : ready : (n)] (flag || number) c |= pre(p[i] , p[j]) = true
+    eq [p[i] : ready] s |= want(p[i]) = true .
+    eq [p[i] : in] s |= in(p[i]) = true .
+    ceq [p[i] : ready] [p[j] : ready] (flag || number) s |= pre(p[i] , p[j]) = true
         if get[number : i] < get[number : j] .
-    eq [p[i] : in : (m)] [p[j] : ready : (n)] c |= inout(p[i] , p[j]) = true .
-    eq c |= p = false [owise] .
+    eq [p[i] : in] [p[j] : ready] s |= inout(p[i] , p[j]) = true .
+    eq s |= p = false [owise] .
 
-    op ini : -> Snapshot .
+    op ini : -> Snap .
 
-    eq ini = (3) ([p[0] : wait : (0)] [p[1] : wait : (0)] [p[2] : wait : (0)]) (0,0,0 || 0,0,0) .
+    eq ini = (5 - 0) ([p[0] : wait] [p[1] : wait] [p[2] : wait] [p[3] : wait]) (0,0,0,0 || 0,0,0,0) .
 
 endm
