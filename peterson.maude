@@ -1,0 +1,62 @@
+mod PETERSON is
+    pr LIST-NAT .
+    pr BOOL .
+    sorts Snapshot Pid Status Process Tables .
+    subsorts Process Tables Nat < Snapshot .
+    op p[_] : Nat -> Pid [ctor] .
+    ops wait ready in : -> Status [ctor] .
+    op none : -> Snapshot [ctor] .
+    op __ : Snapshot Snapshot -> Snapshot [assoc comm ctor id: none] .
+    op [_:_:_] : Pid Status Nat -> Process [ctor] .
+    op _||_ : ListNat ListNat -> Tables [ctor] .
+    op checkTurn[_:_:_] : ListNat Nat Nat -> Bool .
+    op checkTurn[_:_] : ListNat Nat -> Bool .
+
+    vars i t j k n : Nat .
+    var turn q : ListNat .
+
+    eq checkTurn[nil : i : j] = true .
+    eq checkTurn[k,q : 0 : j] = checkTurn[q : j] .
+    eq checkTurn[k,q : s i : j] = if k >= j then false else checkTurn[q : i : j] fi .
+
+    eq checkTurn[nil : i] = true .
+    eq checkTurn[k,q : j] = if k >= j then false else checkTurn[q : j] fi .
+
+    rl [getready] : [p[i] : wait : 0] (q || turn) => [p[i] : ready : 1] (set[q : i , 1] || set[turn : 1 , i]) .
+    crl [nextstep] : n [p[i] : ready : j] (q || turn) => n [p[i] : ready : j + 1] (set[q : i , j + 1] || set[turn : j + 1 , i])
+        if  j < n and (checkTurn[q : i : get[q : i]] or get[turn : j] =/= i) .
+    crl [getin] : n [p[i] : ready : j] (q || turn) => n [p[i] : in : j] (q || turn) 
+        if j == n and (checkTurn[q : i : get[q : i]] or get[turn : j] =/= i) .
+    --- crl [nextstep] : n [p[i] : ready : j] (q || turn) => n [p[i] : ready : j + 1] (set[q : i , j + 1] || set[turn : j + 1 , i])
+    ---     if  j + 1 < n and ((checkTurn[q : i : get[q : i]] and noEqual0(q)) or get[turn : j] =/= i) .
+    --- crl [getin] : n [p[i] : ready : j] (q || turn) => n [p[i] : in : j] (q || turn) 
+    ---     if j + 1 == n and ((checkTurn[q : i : get[q : i]] and noEqual0(q)) or get[turn : j] =/= i) .
+    rl [leave] : [p[i] : in : j] (q || turn) => [p[i] : wait : 0] (set[q : i , 0] || turn) . 
+
+endm
+
+mod PETERSON-CHECK is
+    pr PETERSON .
+    pr SATISFACTION .
+    pr MODEL-CHECKER .
+    pr LTL-SIMPLIFIER .
+
+    subsort Snapshot < State .
+
+    op in : Pid -> Prop .
+    op want : Pid -> Prop .
+
+    var s : State .
+    var c : Snapshot . 
+    var pi : Pid .
+    var p : Prop .
+    var i : Nat .
+    var n : Nat .
+    eq n [pi : in : i] c |= in(pi) = true .
+    eq n [pi : ready : i] c |= want(pi) = true .
+    eq c |= p = false [owise] .
+
+    op ini : -> Snapshot .
+    eq ini = 3 [p[0] : wait : 0] [p[1] : wait : 0] [p[2] : wait : 0] (0,0,0 || 0,0,0,0) .
+
+endm
